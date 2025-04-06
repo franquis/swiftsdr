@@ -1,8 +1,5 @@
 module SoapySDR [system] {
-    header "/opt/homebrew/include/SoapySDR/Device.h"
-    header "/opt/homebrew/include/SoapySDR/Types.h"
-    header "/opt/homebrew/include/SoapySDR/Formats.h"
-    header "/opt/homebrew/include/SoapySDR/Version.h"
-    header "SoapySDRWrapper.h"
+    header "shim.h"
+    link "SoapySDR"
     export *
 }

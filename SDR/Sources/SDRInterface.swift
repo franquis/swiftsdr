@@ -1,8 +1,5 @@
 import Foundation
 import SoapySDR
-import SoapySDR.Types
-import SoapySDR.Wrapper
-import SoapySDR.Constants
 // import rtl_sdr
 
 public class SDRInterface {
@@ -75,7 +72,7 @@ public class SDRInterface {
             throw SDRError.streamActivationFailed
         }
         
-        let result = SoapySDRStream_activate(stream)
+        let result = SoapySDRDevice_activateStream(device, stream, 0, 0, 0)
         if result != 0 {
             throw SDRError.streamActivationFailed
         }
@@ -86,7 +83,7 @@ public class SDRInterface {
             throw SDRError.streamDeactivationFailed
         }
         
-        let result = SoapySDRStream_deactivate(stream)
+        let result = SoapySDRDevice_deactivateStream(device, stream, 0, 0)
         if result != 0 {
             throw SDRError.streamDeactivationFailed
         }
@@ -97,7 +94,7 @@ public class SDRInterface {
             throw SDRError.streamCloseFailed
         }
         
-        let result = SoapySDRStream_close(stream)
+        let result = SoapySDRDevice_closeStream(device, stream)
         if result != 0 {
             throw SDRError.streamCloseFailed
         }
@@ -138,7 +135,7 @@ public class SDRInterface {
         }
     }
     
-    public func readStream(buffers: UnsafeMutablePointer<UnsafeMutableRawPointer?>, numElements: Int, timeoutUs: Int) throws -> (Int, Int32) {
+    public func readStream(buffers: UnsafeMutablePointer<UnsafeMutableRawPointer?>, numElements: Int, timeoutUs: Int) throws -> (Int32, Int32) {
         guard let stream = stream else {
             throw SDRError.readFailed
         }
@@ -146,7 +143,7 @@ public class SDRInterface {
         var flags: Int32 = 0
         var timeNs: Int64 = 0
         
-        let result = SoapySDRStream_read(stream, buffers, numElements, &flags, &timeNs, timeoutUs)
+        let result = SoapySDRDevice_readStream(device, stream, buffers, numElements, &flags, &timeNs, timeoutUs)
         if result < 0 {
             throw SDRError.readFailed
         }
@@ -154,7 +151,7 @@ public class SDRInterface {
         return (result, flags)
     }
     
-    public func read() throws -> [Float] {
+    public func read(numElements: Int, timeoutUs: Int = 1000000) throws -> [Float] {
         guard let stream = stream else {
             throw SDRError.deviceCreationFailed
         }
@@ -162,11 +159,12 @@ public class SDRInterface {
         let bufferSize = 1024 * 1024
         var buffer = [ComplexFloat](repeating: ComplexFloat(), count: bufferSize)
         var flags: Int32 = 0
+        var timeNs: Int64 = 0
         
         let result = buffer.withUnsafeMutableBufferPointer { bufferPtr in
             let ptr = UnsafeMutableRawPointer(bufferPtr.baseAddress)
             var ptrs = [ptr]
-            return Stream_read(stream, &ptrs, bufferSize, &flags)
+            return SoapySDRDevice_readStream(device, stream, buffer, numElements, &flags, &timeNs, timeoutUs)
         }
         
         guard result >= 0 else {
@@ -185,26 +183,34 @@ public class SDRInterface {
         return currentSampleRate
     }
     
-    public func start(frequency: Double, sampleRate: Double) throws {
-        // Find RTL-SDR device
-        let args = "driver=rtlsdr"
-        guard let newDevice = Device_make(args) else {
-            throw SDRError.deviceCreationFailed
-        }
+    public func start(deviceString: String = "rtlsdr", frequency: Double, sampleRate: Double) throws {
+        // Find device
+        var keys: [UnsafeMutablePointer<CChar>?] = [strdup("driver"), nil]
+        var vals: [UnsafeMutablePointer<CChar>?] = [strdup(deviceString), nil]
+
+        var kwargs = SoapySDRKwargs()
+        kwargs.keys = &keys
+        kwargs.vals = &vals
+
+        let newDevice = SoapySDRDevice_make(&kwargs)
+
+        // Libérer la mémoire (strdup → free)
+        free(keys[0])
+        free(vals[0])
         device = newDevice
         
         // Configure device
-        let result = Device_setFrequency(device, Int32(SoapySDR.SOAPY_SDR_RX), 0, frequency)
+        let result = SoapySDRDevice_setFrequency(device, Int32(SoapySDR.SOAPY_SDR_RX), 0, frequency, nil)
         guard result == 0 else {
             throw SDRError.frequencySetFailed
         }
         
-        let sampleResult = Device_setSampleRate(device, Int32(SoapySDR.SOAPY_SDR_RX), 0, sampleRate)
+        let sampleResult = SoapySDRDevice_setSampleRate(device, Int32(SoapySDR.SOAPY_SDR_RX), 0, sampleRate)
         guard sampleResult == 0 else {
             throw SDRError.sampleRateSetFailed
         }
         
-        let gainResult = Device_setGain(device, Int32(SoapySDR.SOAPY_SDR_RX), 0, 20.0)
+        let gainResult = SoapySDRDevice_setGain(device, Int32(SoapySDR.SOAPY_SDR_RX), 0, 20.0)
         guard gainResult == 0 else {
             throw SDRError.gainSetFailed
         }
@@ -213,7 +219,7 @@ public class SDRInterface {
         var newStream: OpaquePointer?
         let channels: [Int] = [0]
         let streamResult = channels.withUnsafeBufferPointer { channelsPtr in
-            Device_setupStream(device, &newStream, Int32(SoapySDR.SOAPY_SDR_RX), SOAPY_SDR_CF32, channelsPtr.baseAddress, 1)
+            SoapySDRDevice_setupStream(device, Int32(SoapySDR.SOAPY_SDR_RX), SOAPY_SDR_CF32, channelsPtr.baseAddress, 1, nil)
         }
         guard streamResult == 0, let stream = newStream else {
             throw SDRError.streamSetupFailed
@@ -221,7 +227,7 @@ public class SDRInterface {
         self.stream = stream
         
         // Activate stream
-        let activateResult = Stream_activate(stream)
+        let activateResult = SoapySDRDevice_activateStream(device, stream, 0, 0, 0)
         guard activateResult == 0 else {
             throw SDRError.streamActivationFailed
         }
@@ -232,11 +238,11 @@ public class SDRInterface {
     
     public func stop() {
         if let stream = stream {
-            _ = Stream_deactivate(stream)
-            _ = Stream_close(stream)
+            _ = SoapySDRDevice_deactivateStream(device, stream, 0, 0)
+            _ = SoapySDRDevice_closeStream(device, stream)
         }
         if let device = device {
-            Device_unmake(device)
+            SoapySDRDevice_unmake(device)
         }
         device = nil
         stream = nil

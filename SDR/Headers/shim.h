@@ -12,4 +12,9 @@
 #include <SoapySDR/Time.h>
 #include <SoapySDR/Types.h>
 
+typedef struct {
+    float real;
+    float imag;
+} ComplexFloat;
+
 #endif /* SDR_SHIM_H */ 

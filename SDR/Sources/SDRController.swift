@@ -119,7 +119,7 @@ public class SDRController {
     }
     
     public func setFrequency(_ frequency: Double) {
-        try? sdrInterface.setFrequency(frequency)
+        try? sdrInterface.setFrequency(frequency, direction: 0, channel: 0)
     }
     
     public func setBaseFrequency(_ frequency: Double) {
@@ -127,11 +127,11 @@ public class SDRController {
     }
     
     public func setSampleRate(_ sampleRate: Double) {
-        try? sdrInterface.setSampleRate(sampleRate)
+        try? sdrInterface.setSampleRate(sampleRate, direction: 0, channel: 0)
     }
     
     public func setGain(_ gain: Double) {
-        try? sdrInterface.setGain(gain)
+        try? sdrInterface.setGain(gain, direction: 0, channel: 0)
     }
     
     public func onSignalStrengthUpdate(_ strengh: Float) {
