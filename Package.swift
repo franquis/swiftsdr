@@ -4,28 +4,58 @@ import PackageDescription
 let package = Package(
     name: "SDR",
     platforms: [
-        .macOS(.v11)
+        .macOS(.v12)
     ],
     products: [
         .library(
             name: "SDR",
             targets: ["SDR"]),
+        .executable(
+            name: "SDRApp",
+            targets: ["SDRApp"])
     ],
     dependencies: [
-        // Remove SoapySDR package dependency as we'll use the system library
     ],
     targets: [
+        .systemLibrary(
+            name: "SoapySDR",
+            path: "SDR/Headers",
+            pkgConfig: "soapysdr",
+            providers: [
+                .brew(["soapysdr"])
+            ]
+        ),
         .target(
             name: "SDR",
-            dependencies: [],
-            path: "Sources",
+            dependencies: ["SoapySDR"],
+            path: "SDR",
+            sources: ["Sources"],
+            resources: [
+                .process("SDR.entitlements"),
+                .process("Assets.xcassets")
+            ],
+            cSettings: [
+                .headerSearchPath("Headers"),
+                .define("SWIFT_PACKAGE"),
+                .define("_LIBCPP_DISABLE_AVAILABILITY")
+            ],
+            swiftSettings: [
+                .define("SWIFT_PACKAGE")
+            ],
             linkerSettings: [
                 .linkedLibrary("SoapySDR", .when(platforms: [.macOS])),
-                .unsafeFlags(["-L/opt/homebrew/lib"]), // Path to Homebrew libraries
-                .unsafeFlags(["-I/opt/homebrew/include"]) // Path to Homebrew headers
+                .unsafeFlags(["-L/opt/homebrew/lib"])
             ]),
-        .testTarget(
-            name: "SDRTests",
-            dependencies: ["SDR"]),
+        .executableTarget(
+            name: "SDRApp",
+            dependencies: ["SDR", "SoapySDR"],
+            path: "SDRApp",
+            resources: [
+                .process("Assets.xcassets")
+            ],
+            linkerSettings: [
+                .linkedLibrary("SoapySDR", .when(platforms: [.macOS])),
+                .unsafeFlags(["-L/opt/homebrew/lib"])
+            ])
     ]
 ) 

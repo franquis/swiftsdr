@@ -35,6 +35,6 @@ struct LevelMeter: View {
     }
 }
 
-#Preview {
+/*#Preview {
     LevelMeter(value: 0.5, title: "Signal", height: 100)
-} 
+} */

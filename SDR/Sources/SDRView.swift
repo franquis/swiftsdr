@@ -1,8 +1,8 @@
 import SwiftUI
 
-struct SDRView: View {
+@available(macOS 12.0, *)
+public struct SDRView: View {
     @StateObject private var viewModel = SDRViewModel()
-    
     private let frequencyFormatter: NumberFormatter = {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
@@ -24,7 +24,9 @@ struct SDRView: View {
         return formatter
     }()
     
-    var body: some View {
+    public init() {}
+    
+    public var body: some View {
         VStack(spacing: 20) {
             // Title
             Text("SDR Receiver")
@@ -163,6 +165,11 @@ struct SDRView: View {
     }
 }
 
-#Preview {
-    SDRView()
-} 
+#if DEBUG
+@available(macOS 12.0, *)
+struct SDRView_Previews: PreviewProvider {
+    static var previews: some View {
+        SDRView()
+    }
+}
+#endif 

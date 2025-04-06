@@ -1,5 +1,6 @@
 import SwiftUI
 
+@available(macOS 12.0, *)
 struct SpectrumView: View {
     let data: [Float]
     let height: CGFloat
@@ -33,6 +34,11 @@ struct SpectrumView: View {
     }
 }
 
-#Preview {
-    SpectrumView(data: [0.1, 0.3, 0.5, 0.7, 0.9, 0.7, 0.5, 0.3, 0.1], height: 150)
-} 
+
+/*#Preview {
+    if #available(macOS 12.0, *) {
+        SpectrumView(data: [0.1, 0.3, 0.5, 0.7, 0.9, 0.7, 0.5, 0.3, 0.1], height: 150)
+    } else {
+        Text("SpectrumView requires macOS 12.0 or later")
+    }
+} */

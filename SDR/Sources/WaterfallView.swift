@@ -1,5 +1,6 @@
 import SwiftUI
 
+@available(macOS 12.0, *)
 struct WaterfallView: View {
     let data: [[Float]]
     let height: CGFloat
@@ -36,10 +37,14 @@ struct WaterfallView: View {
     }
 }
 
-#Preview {
-    WaterfallView(data: [
-        [0.1, 0.3, 0.5, 0.7, 0.9, 0.7, 0.5, 0.3, 0.1],
-        [0.2, 0.4, 0.6, 0.8, 1.0, 0.8, 0.6, 0.4, 0.2],
-        [0.1, 0.3, 0.5, 0.7, 0.9, 0.7, 0.5, 0.3, 0.1]
-    ], height: 200)
-} 
+/*#Preview {
+    if #available(macOS 12.0, *) {
+        WaterfallView(data: [
+            [0.1, 0.3, 0.5, 0.7, 0.9, 0.7, 0.5, 0.3, 0.1],
+            [0.2, 0.4, 0.6, 0.8, 1.0, 0.8, 0.6, 0.4, 0.2],
+            [0.3, 0.5, 0.7, 0.9, 0.7, 0.5, 0.3, 0.1, 0.3]
+        ], height: 150)
+    } else {
+        Text("WaterfallView requires macOS 12.0 or later")
+    }
+} */

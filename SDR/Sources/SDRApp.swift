@@ -8,6 +8,7 @@
 import SwiftUI
 
 @main
+@available(macOS 13.0, *)
 struct SDRApp: App {
     var body: some Scene {
         WindowGroup {

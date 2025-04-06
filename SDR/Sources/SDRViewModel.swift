@@ -27,14 +27,10 @@ class SDRViewModel: ObservableObject {
     }
     
     private func setupSDR() {
-        sdrController = SDRController(
-            sampleRate: bandwidth,
-            audioSampleRate: 48000.0,
-            frequency: baseFrequency,
-            mode: mode
-        )
+        sdrController = SDRController()
         
         // Setup callbacks
+        /*
         sdrController?.onSignalStrengthUpdate = { [weak self] strength in
             self?.signalStrength = strength
         }
@@ -47,6 +43,7 @@ class SDRViewModel: ObservableObject {
             self?.spectrumData = spectrum
             self?.updateWaterfall(spectrum: spectrum)
         }
+         */
     }
     
     private func updateWaterfall(spectrum: [Float]) {
