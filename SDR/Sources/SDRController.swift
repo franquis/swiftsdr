@@ -76,40 +76,36 @@ public class SDRController {
         }
     }
     
-    public func start() {
-        do {
-            try sdrInterface.start(frequency: 100.0e6, sampleRate: 2.4e6)
-            
-            // Start processing loop
-            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-                while true {
-                    guard let self = self else { break }
+    public func start() throws {
+        try sdrInterface.start(frequency: 100.0e6, sampleRate: 2.4e6)
+        
+        // Start processing loop
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            while true {
+                guard let self = self else { break }
+                
+                do {
+                    let samples = try self.sdrInterface.read(numElements: 1024)
                     
-                    do {
-                        let samples = try self.sdrInterface.read()
-                        
-                        // Calculate signal metrics
-                        self.signalStrength = self.calculateSignalStrength(samples: samples)
-                        
-                        // Process samples
-                        let demodulated = self.dspModule.demodulate(samples: samples, mode: .am)
-                        
-                        // Calculate audio level
-                        self.audioLevel = self.calculateAudioLevel(samples: demodulated)
-                        
-                        // Calculate spectrum
-                        self.calculateSpectrum(samples: samples)
-                        
-                        // Output audio
-                        self.audioOutput.play(samples: demodulated)
-                    } catch {
-                        print("Error processing samples: \(error)")
-                        break
-                    }
+                    // Calculate signal metrics
+                    self.signalStrength = self.calculateSignalStrength(samples: samples)
+                    
+                    // Process samples
+                    let demodulated = self.dspModule.demodulate(samples: samples, mode: .am)
+                    
+                    // Calculate audio level
+                    self.audioLevel = self.calculateAudioLevel(samples: demodulated)
+                    
+                    // Calculate spectrum
+                    self.calculateSpectrum(samples: samples)
+                    
+                    // Output audio
+                    self.audioOutput.play(samples: demodulated)
+                } catch {
+                    print("Error processing samples: \(error)")
+                    break
                 }
             }
-        } catch {
-            print("Error starting SDR: \(error)")
         }
     }
     
@@ -118,28 +114,30 @@ public class SDRController {
         audioOutput.stop()
     }
     
-    public func setFrequency(_ frequency: Double) {
-        try? sdrInterface.setFrequency(frequency, direction: 0, channel: 0)
+    public func setFrequency(_ frequency: Double) throws {
+        try sdrInterface.setFrequency(frequency, direction: 0, channel: 0)
     }
     
-    public func setBaseFrequency(_ frequency: Double) {
-        //
+    public func setBaseFrequency(_ frequency: Double) throws {
+        // Implementation needed
+        throw SDRError.deviceError("Base frequency setting not implemented")
     }
     
-    public func setSampleRate(_ sampleRate: Double) {
-        try? sdrInterface.setSampleRate(sampleRate, direction: 0, channel: 0)
+    public func setSampleRate(_ sampleRate: Double) throws {
+        try sdrInterface.setSampleRate(sampleRate, direction: 0, channel: 0)
     }
     
-    public func setGain(_ gain: Double) {
-        try? sdrInterface.setGain(gain, direction: 0, channel: 0)
+    public func setGain(_ gain: Double) throws {
+        try sdrInterface.setGain(gain, direction: 0, channel: 0)
     }
     
     public func onSignalStrengthUpdate(_ strengh: Float) {
         // 
     }
     
-    public func setBandwidth(_ bandwith: Double) {
-        //
+    public func setBandwidth(_ bandwidth: Double) throws {
+        // Implementation needed
+        throw SDRError.deviceError("Bandwidth setting not implemented")
     }
     
     func setMode(_ mode: DemodulationMode) {

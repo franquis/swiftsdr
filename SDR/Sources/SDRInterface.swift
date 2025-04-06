@@ -163,20 +163,20 @@ public class SDRInterface {
         
         let result = buffer.withUnsafeMutableBufferPointer { bufferPtr in
             let ptr = UnsafeMutableRawPointer(bufferPtr.baseAddress)
-            var ptrs = [ptr]
-            return SoapySDRDevice_readStream(device, stream, buffer, numElements, &flags, &timeNs, timeoutUs)
+            var ptrs: [UnsafeMutableRawPointer?] = [ptr]
+            return SoapySDRDevice_readStream(device, stream, &ptrs, numElements, &flags, &timeNs, timeoutUs)
         }
         
         guard result >= 0 else {
             throw SDRError.readFailed
         }
         
-        if flags & Int32(SoapySDR.SOAPY_SDR_OVERFLOW) != 0 {
+        if flags & SoapySDR.SOAPY_SDR_END_ABRUPT != 0 {
             print("Overflow detected")
         }
         
         // Convert complex samples to real samples (I component only)
-        return buffer.map { $0.real }
+        return buffer[..<Int(result)].map { $0.real }
     }
     
     public var sampleRate: Double {
@@ -185,16 +185,16 @@ public class SDRInterface {
     
     public func start(deviceString: String = "rtlsdr", frequency: Double, sampleRate: Double) throws {
         // Find device
-        var keys: [UnsafeMutablePointer<CChar>?] = [strdup("driver"), nil]
+        var keys: [UnsafeMutablePointer<CChar>?] = [strdup(deviceString), nil]
         var vals: [UnsafeMutablePointer<CChar>?] = [strdup(deviceString), nil]
-
+        
         var kwargs = SoapySDRKwargs()
-        kwargs.keys = &keys
-        kwargs.vals = &vals
-
+        kwargs.keys = keys.withUnsafeMutableBufferPointer { $0.baseAddress }
+        kwargs.vals = vals.withUnsafeMutableBufferPointer { $0.baseAddress }
+        
         let newDevice = SoapySDRDevice_make(&kwargs)
-
-        // Libérer la mémoire (strdup → free)
+        
+        // Free memory
         free(keys[0])
         free(vals[0])
         device = newDevice
@@ -216,12 +216,11 @@ public class SDRInterface {
         }
         
         // Setup stream
-        var newStream: OpaquePointer?
         let channels: [Int] = [0]
         let streamResult = channels.withUnsafeBufferPointer { channelsPtr in
-            SoapySDRDevice_setupStream(device, Int32(SoapySDR.SOAPY_SDR_RX), SOAPY_SDR_CF32, channelsPtr.baseAddress, 1, nil)
+            SoapySDRDevice_setupStream(device, Int32(SoapySDR.SOAPY_SDR_RX), SoapySDR.SOAPY_SDR_CF32, channelsPtr.baseAddress, 1, nil)
         }
-        guard streamResult == 0, let stream = newStream else {
+        guard let stream = streamResult else {
             throw SDRError.streamSetupFailed
         }
         self.stream = stream

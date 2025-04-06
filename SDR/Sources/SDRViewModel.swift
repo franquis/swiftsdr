@@ -59,12 +59,14 @@ class SDRViewModel: ObservableObject {
         if isRunning {
             controller.stop()
             isRunning = false
+            errorMessage = nil
         } else {
             do {
                 try controller.start()
                 isRunning = true
                 errorMessage = nil
             } catch {
+                isRunning = false
                 errorMessage = "Failed to start SDR: \(error.localizedDescription)"
             }
         }
