@@ -76,9 +76,11 @@ public class SDRController {
         }
     }
     
-    public func start() throws {
-        try sdrInterface.start(frequency: 100.0e6, sampleRate: 2.4e6)
+    public func start(device: SDRInterface.DeviceInfo) throws {
+        try sdrInterface.start(deviceInfo: device, frequency: 100.0e6, sampleRate: 2.4e6)
         
+        print("Starting SDRController with device: \(device.label)")
+
         // Start processing loop
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             while true {
@@ -90,6 +92,7 @@ public class SDRController {
                     // Calculate signal metrics
                     self.signalStrength = self.calculateSignalStrength(samples: samples)
                     
+                    print("Signal strength: \(self.signalStrength)")
                     // Process samples
                     let demodulated = self.dspModule.demodulate(samples: samples, mode: .am)
                     
@@ -146,5 +149,9 @@ public class SDRController {
     
     public func onAudioLevelUpdate(_ level: Float) {
         // 
+    }
+    
+    public static func enumerateDevices() throws -> [SDRInterface.DeviceInfo] {
+        return try SDRInterface.enumerateDevices()
     }
 }

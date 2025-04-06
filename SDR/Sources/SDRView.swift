@@ -37,6 +37,27 @@ public struct SDRView: View {
             HStack(spacing: 20) {
                 // Controls
                 VStack(spacing: 20) {
+                    // Device Selection
+                    VStack {
+                        Text("Device")
+                            .font(.headline)
+                        
+                        Picker("Select Device", selection: $viewModel.selectedDevice) {
+                            ForEach(viewModel.availableDevices, id: \.serial) { device in
+                                Text("\(device.label) (\(device.driver))")
+                                    .tag(Optional(device))
+                            }
+                        }
+                        .onChange(of: viewModel.selectedDevice) { newDevice in
+                            if let device = newDevice {
+                                viewModel.selectedDevice = device
+                            }
+                        }
+                    }
+                    .padding()
+                    .background(Color(.windowBackgroundColor))
+                    .cornerRadius(10)
+                    
                     // Base Frequency Control
                     VStack {
                         Text("Base Frequency (MHz)")
@@ -138,6 +159,18 @@ public struct SDRView: View {
                             .frame(width: 100)
                             .padding()
                             .background(viewModel.isRunning ? Color.red : Color.green)
+                            .foregroundColor(.white)
+                            .cornerRadius(10)
+                    }
+                    
+                    // Scan Devices Button
+                    Button(action: {
+                        viewModel.scanDevices()
+                    }) {
+                        Text("Scan Devices")
+                            .frame(width: 150)
+                            .padding()
+                            .background(Color.blue)
                             .foregroundColor(.white)
                             .cornerRadius(10)
                     }

@@ -9,6 +9,8 @@ class SDRViewModel: ObservableObject {
     @Published var frequency: Double = 100000000.0 // 100 MHz
     @Published var mode: DemodulationMode = .fm
     @Published var errorMessage: String?
+    @Published var availableDevices: [SDRInterface.DeviceInfo] = []
+    @Published var selectedDevice: SDRInterface.DeviceInfo?
     
     // SDR parameters
     @Published var baseFrequency: Double = 100000000.0 // 100 MHz
@@ -26,24 +28,20 @@ class SDRViewModel: ObservableObject {
         setupSDR()
     }
     
+    func scanDevices() {
+        do {
+            availableDevices = try SDRController.enumerateDevices()
+            print("Available devices: \(availableDevices)")
+            if let firstDevice = availableDevices.first {
+                selectedDevice = firstDevice
+            }
+        } catch {
+            errorMessage = "Failed to enumerate devices: \(error.localizedDescription)"
+        }
+    }
+    
     private func setupSDR() {
         sdrController = SDRController()
-        
-        // Setup callbacks
-        /*
-        sdrController?.onSignalStrengthUpdate = { [weak self] strength in
-            self?.signalStrength = strength
-        }
-        
-        sdrController?.onAudioLevelUpdate = { [weak self] level in
-            self?.audioLevel = level
-        }
-        
-        sdrController?.onSpectrumUpdate = { [weak self] spectrum in
-            self?.spectrumData = spectrum
-            self?.updateWaterfall(spectrum: spectrum)
-        }
-         */
     }
     
     private func updateWaterfall(spectrum: [Float]) {
@@ -62,7 +60,7 @@ class SDRViewModel: ObservableObject {
             errorMessage = nil
         } else {
             do {
-                try controller.start()
+                try controller.start(device: selectedDevice!)
                 isRunning = true
                 errorMessage = nil
             } catch {

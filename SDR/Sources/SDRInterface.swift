@@ -18,6 +18,77 @@ public class SDRInterface {
         case frequencySetFailed
         case sampleRateSetFailed
         case gainSetFailed
+        case enumerationFailed
+    }
+    
+    public struct DeviceInfo: Hashable, Equatable {
+        public let driver: String
+        public let label: String
+        public let serial: String
+        
+        public static func == (lhs: DeviceInfo, rhs: DeviceInfo) -> Bool {
+            return lhs.serial == rhs.serial
+        }
+        
+        public func hash(into hasher: inout Hasher) {
+            hasher.combine(serial)
+        }
+    }
+    
+    // Helper function to convert Swift string to C string
+    private static func withCString<T>(_ string: String, _ body: (UnsafePointer<CChar>) throws -> T) rethrows -> T {
+        return try string.withCString(body)
+    }
+    
+    // Helper function to get value from kwargs
+    private static func getKwargsValue(_ kwargs: UnsafePointer<SoapySDRKwargs>, _ key: String) -> String {
+        return withCString(key) { cKey in
+            if let value = SoapySDRKwargs_get(kwargs, cKey) {
+                return String(cString: value)
+            }
+            return ""
+        }
+    }
+    
+    public static func enumerateDevices() throws -> [DeviceInfo] {
+        var devices: [DeviceInfo] = []
+        
+        do {
+            // Create empty kwargs for enumeration
+            var kwargs = SoapySDRKwargs()
+            kwargs.keys = nil
+            kwargs.vals = nil
+            
+            // Get the number of devices
+            var length: size_t = 0
+            let results = SoapySDRDevice_enumerate(&kwargs, &length)
+            if results == nil {
+                throw SDRError.enumerationFailed
+            }
+            
+            // Convert results to Swift array
+            for i in 0..<length {
+                if var result = results?[i] {
+                    // Get values from kwargs using helper function
+                    let driver = getKwargsValue(&result, "driver")
+                    let label = getKwargsValue(&result, "label")
+                    let serial = getKwargsValue(&result, "serial")
+                    
+                    devices.append(DeviceInfo(driver: driver, label: label, serial: serial))
+                    
+                }
+            }
+            
+            // Ensure results is properly managed
+            if let results = results {
+                SoapySDRKwargsList_clear(results, length)
+            }
+        } catch {
+            print("Error during device enumeration: \(error)")
+            throw SDRError.enumerationFailed
+        }
+        
+        return devices
     }
     
     public init() {
@@ -29,12 +100,21 @@ public class SDRInterface {
     }
     
     public func openDevice(args: String) throws {
-        // Convert args to C string
-        guard let device = args.withCString({ cArgs in
-            SoapySDRDevice_make(nil)  // Using nil for now since we need to create SoapySDRKwargs
-        }) else {
+        // Convert args to kwargs
+        var kwargs = SoapySDRKwargs()
+        args.withCString { cArgs in
+            kwargs = SoapySDRKwargs_fromString(cArgs)
+        }
+        
+        // Create device with kwargs
+        guard let device = SoapySDRDevice_make(&kwargs) else {
+            SoapySDRKwargs_clear(&kwargs)
             throw SDRError.deviceCreationFailed
         }
+        
+        // Clean up kwargs
+        SoapySDRKwargs_clear(&kwargs)
+        
         self.device = device
     }
     
@@ -47,21 +127,37 @@ public class SDRInterface {
     
     public func setupStream(direction: Int32, format: String, channels: [Int], args: String?) throws {
         guard let device = device else {
-            throw SDRError.deviceCreationFailed
-        }
-        
-        let channelsCount = channels.count
-        let channelsPtr = UnsafeMutablePointer<Int>.allocate(capacity: channelsCount)
-        defer { channelsPtr.deallocate() }
-        
-        for (index, channel) in channels.enumerated() {
-            channelsPtr[index] = channel
-        }
-        
-        guard let stream = format.withCString({ cFormat in
-            SoapySDRDevice_setupStream(device, direction, cFormat, nil, 0, nil)
-        }) else {
             throw SDRError.streamSetupFailed
+        }
+        
+        // Convert format to C string
+        let formatPtr = format.withCString { cFormat in
+            return cFormat
+        }
+        
+        // Convert channels to C array
+        let channelsPtr = channels.map { Int($0) }
+        
+        // Convert args to kwargs if provided
+        var kwargs: SoapySDRKwargs?
+        if let args = args {
+            kwargs = args.withCString { cArgs in
+                return SoapySDRKwargs_fromString(cArgs)
+            }
+        }
+        
+        // Setup stream
+        var mutableKwargs = kwargs!
+        guard let stream = SoapySDRDevice_setupStream(device, direction, formatPtr, channelsPtr, channelsPtr.count, &mutableKwargs) else {
+            if var kwargs = kwargs {
+                SoapySDRKwargs_clear(&kwargs)
+            }
+            throw SDRError.streamSetupFailed
+        }
+        
+        // Clean up kwargs if used
+        if var kwargs = kwargs {
+            SoapySDRKwargs_clear(&kwargs)
         }
         
         self.stream = stream
@@ -183,34 +279,24 @@ public class SDRInterface {
         return currentSampleRate
     }
     
-    public func start(deviceString: String = "rtlsdr", frequency: Double, sampleRate: Double) throws {
-        // Find device
-        var keys: [UnsafeMutablePointer<CChar>?] = [strdup(deviceString), nil]
-        var vals: [UnsafeMutablePointer<CChar>?] = [strdup(deviceString), nil]
+    public func start(deviceInfo: DeviceInfo, frequency: Double, sampleRate: Double) throws {
         
-        var kwargs = SoapySDRKwargs()
-        kwargs.keys = keys.withUnsafeMutableBufferPointer { $0.baseAddress }
-        kwargs.vals = vals.withUnsafeMutableBufferPointer { $0.baseAddress }
+        try openDevice(args: deviceInfo.driver)
         
-        let newDevice = SoapySDRDevice_make(&kwargs)
-        
-        // Free memory
-        free(keys[0])
-        free(vals[0])
-        device = newDevice
-        
+        print("Start SDRInterface with device: \(deviceInfo.label)")
+
         // Configure device
-        let result = SoapySDRDevice_setFrequency(device, Int32(SoapySDR.SOAPY_SDR_RX), 0, frequency, nil)
+        let result = SoapySDRDevice_setFrequency(self.device, Int32(SoapySDR.SOAPY_SDR_RX), 0, frequency, nil)
         guard result == 0 else {
             throw SDRError.frequencySetFailed
         }
         
-        let sampleResult = SoapySDRDevice_setSampleRate(device, Int32(SoapySDR.SOAPY_SDR_RX), 0, sampleRate)
+        let sampleResult = SoapySDRDevice_setSampleRate(self.device, Int32(SoapySDR.SOAPY_SDR_RX), 0, sampleRate)
         guard sampleResult == 0 else {
             throw SDRError.sampleRateSetFailed
         }
         
-        let gainResult = SoapySDRDevice_setGain(device, Int32(SoapySDR.SOAPY_SDR_RX), 0, 20.0)
+        let gainResult = SoapySDRDevice_setGain(self.device, Int32(SoapySDR.SOAPY_SDR_RX), 0, 20.0)
         guard gainResult == 0 else {
             throw SDRError.gainSetFailed
         }
@@ -218,7 +304,7 @@ public class SDRInterface {
         // Setup stream
         let channels: [Int] = [0]
         let streamResult = channels.withUnsafeBufferPointer { channelsPtr in
-            SoapySDRDevice_setupStream(device, Int32(SoapySDR.SOAPY_SDR_RX), SoapySDR.SOAPY_SDR_CF32, channelsPtr.baseAddress, 1, nil)
+            SoapySDRDevice_setupStream(self.device, Int32(SoapySDR.SOAPY_SDR_RX), SoapySDR.SOAPY_SDR_CF32, channelsPtr.baseAddress, 1, nil)
         }
         guard let stream = streamResult else {
             throw SDRError.streamSetupFailed
@@ -226,7 +312,7 @@ public class SDRInterface {
         self.stream = stream
         
         // Activate stream
-        let activateResult = SoapySDRDevice_activateStream(device, stream, 0, 0, 0)
+        let activateResult = SoapySDRDevice_activateStream(self.device, stream, 0, 0, 0)
         guard activateResult == 0 else {
             throw SDRError.streamActivationFailed
         }
