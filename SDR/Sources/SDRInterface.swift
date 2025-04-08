@@ -105,6 +105,8 @@ public class SDRInterface {
         args.withCString { cArgs in
             kwargs = SoapySDRKwargs_fromString(cArgs)
         }
+
+        print("kwargs: \(kwargs)")
         
         // Create device with kwargs
         guard let device = SoapySDRDevice_make(&kwargs) else {
@@ -198,6 +200,7 @@ public class SDRInterface {
     }
     
     public func setFrequency(_ frequency: Double, direction: Int32, channel: Int) throws {
+        print("Setting frequency: \(frequency)")
         guard let device = device else {
             throw SDRError.deviceCreationFailed
         }
@@ -252,17 +255,21 @@ public class SDRInterface {
             throw SDRError.deviceCreationFailed
         }
         
-        let bufferSize = 1024 * 1024
+        let bufferSize = 16 * 16384
         var buffer = [ComplexFloat](repeating: ComplexFloat(), count: bufferSize)
         var flags: Int32 = 0
         var timeNs: Int64 = 0
         
+        print("Attempting to read \(numElements) samples")
+
         let result = buffer.withUnsafeMutableBufferPointer { bufferPtr in
             let ptr = UnsafeMutableRawPointer(bufferPtr.baseAddress)
             var ptrs: [UnsafeMutableRawPointer?] = [ptr]
             return SoapySDRDevice_readStream(device, stream, &ptrs, numElements, &flags, &timeNs, timeoutUs)
         }
-        
+
+        print("Read \(result) samples with flags: \(flags)")
+
         guard result >= 0 else {
             throw SDRError.readFailed
         }
@@ -279,24 +286,27 @@ public class SDRInterface {
         return currentSampleRate
     }
     
-    public func start(deviceInfo: DeviceInfo, frequency: Double, sampleRate: Double) throws {
-        
-        try openDevice(args: deviceInfo.driver)
-        
-        print("Start SDRInterface with device: \(deviceInfo.label)")
+    public func start(deviceInfo: DeviceInfo, frequency: Double, sampleRate: Double, gain: Double = 20) throws {
+    
+        let args = "driver=\(deviceInfo.driver),serial=\(deviceInfo.serial)"
+        print("Opening device: \(args)")
+        try openDevice(args: args)
 
         // Configure device
-        let result = SoapySDRDevice_setFrequency(self.device, Int32(SoapySDR.SOAPY_SDR_RX), 0, frequency, nil)
-        guard result == 0 else {
-            throw SDRError.frequencySetFailed
-        }
-        
         let sampleResult = SoapySDRDevice_setSampleRate(self.device, Int32(SoapySDR.SOAPY_SDR_RX), 0, sampleRate)
         guard sampleResult == 0 else {
             throw SDRError.sampleRateSetFailed
         }
+
+        let result = SoapySDRDevice_setFrequency(self.device, Int32(SoapySDR.SOAPY_SDR_RX), 0, frequency, nil)
+        guard result == 0 else {
+            throw SDRError.frequencySetFailed
+        }
+
+        // print("SoapySDRDevice_lastError: \(SoapySDRDevice_lastError())")
         
-        let gainResult = SoapySDRDevice_setGain(self.device, Int32(SoapySDR.SOAPY_SDR_RX), 0, 20.0)
+        
+        let gainResult = SoapySDRDevice_setGain(self.device, Int32(SoapySDR.SOAPY_SDR_RX), 0, gain)
         guard gainResult == 0 else {
             throw SDRError.gainSetFailed
         }
@@ -304,6 +314,7 @@ public class SDRInterface {
         // Setup stream
         let channels: [Int] = [0]
         let streamResult = channels.withUnsafeBufferPointer { channelsPtr in
+            // SoapySDRDevice_setupStream(self.device, Int32(SoapySDR.SOAPY_SDR_RX), SoapySDR.SOAPY_SDR_CF32, channelsPtr.baseAddress, 1, nil)
             SoapySDRDevice_setupStream(self.device, Int32(SoapySDR.SOAPY_SDR_RX), SoapySDR.SOAPY_SDR_CF32, channelsPtr.baseAddress, 1, nil)
         }
         guard let stream = streamResult else {

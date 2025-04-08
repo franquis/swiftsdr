@@ -65,17 +65,17 @@ public struct SDRView: View {
                         
                         HStack {
                             Button("-1 MHz") {
-                                viewModel.setBaseFrequency(viewModel.baseFrequency - 1_000_000)
+                                viewModel.setFrequency(viewModel.frequency - 1_000_000)
                             }
                             .buttonStyle(.bordered)
                             
-                            TextField("Frequency", value: $viewModel.baseFrequency, formatter: frequencyFormatter)
+                            TextField("Frequency", value: $viewModel.frequency, formatter: frequencyFormatter)
                                 .textFieldStyle(.roundedBorder)
                                 .frame(width: 150)
                                 .multilineTextAlignment(.center)
                             
                             Button("+1 MHz") {
-                                viewModel.setBaseFrequency(viewModel.baseFrequency + 1_000_000)
+                                viewModel.setFrequency(viewModel.frequency + 1_000_000)
                             }
                             .buttonStyle(.bordered)
                         }

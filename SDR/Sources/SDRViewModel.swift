@@ -6,7 +6,7 @@ class SDRViewModel: ObservableObject {
     private var sdrController: SDRController?
     
     @Published var isRunning = false
-    @Published var frequency: Double = 100000000.0 // 100 MHz
+    @Published var frequency: Double = 432975000.0 // 432.975 MHz
     @Published var mode: DemodulationMode = .fm
     @Published var errorMessage: String?
     @Published var availableDevices: [SDRInterface.DeviceInfo] = []
@@ -24,8 +24,11 @@ class SDRViewModel: ObservableObject {
     @Published var waterfallData: [[Float]] = []
     private let maxWaterfallLines = 100
     
+    @Published var timer: Timer?
+    
     init() {
         setupSDR()
+        startTimer()
     }
     
     func scanDevices() {
@@ -60,7 +63,7 @@ class SDRViewModel: ObservableObject {
             errorMessage = nil
         } else {
             do {
-                try controller.start(device: selectedDevice!)
+                try controller.start(device: selectedDevice!, frequency: frequency, sampleRate: 2.4e6)
                 isRunning = true
                 errorMessage = nil
             } catch {
@@ -123,7 +126,19 @@ class SDRViewModel: ObservableObject {
         sdrController?.setMode(newMode)
     }
     
+    private func startTimer() {
+        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self = self, let controller = self.sdrController else { return }
+                self.signalStrength = controller.signalStrength
+            }
+        }
+    }
+    
     deinit {
-        sdrController?.stop()
+        Task { @MainActor in
+            sdrController?.stop()
+            timer?.invalidate()
+        }
     }
 } 
